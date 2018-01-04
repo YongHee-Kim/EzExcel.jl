@@ -1,0 +1,42 @@
+# All Rights Belongs to xlrd
+# https://github.com/python-excel/xlrd/blob/master/xlrd/formatting.py#L359-400
+const STD_FORMAT_STRING = Dict(
+    # "std" == "standard for US English locale"
+    # TODO ... a lot of work to tailor these to the user's locale.
+    # See e.g. gnumeric-1.x.y/src/formats.c
+     0 = (Any,         "General"),
+     1 = (Int,         "0"),
+     2 = (Float64,     "0.00"),
+     3 = (Float64,     "#,##0"),
+     4 = (Float64,     "#,##0.00"),
+     5 = (Float64,     "u0024#,##0_);(u0024#,##0)"),
+     6 = (Float64,     "u0024#,##0_);[Red](u0024#,##0)"),
+     7 = (Float64,     "u0024#,##0.00_);(u0024#,##0.00)"),
+     8 = (Float64,     "u0024#,##0.00_);[Red](u0024#,##0.00)"),
+     9 = (Float64,     "0%"),
+    10 = (Float64,     "0.00%"),
+    11 = (Float64,     "0.00E+00"),
+    12 = (Rational,    "# ?/?"),
+    13 = (Rational,    "# ??/??"),
+    14 = (DateTime,    "m/d/yy"),
+    15 = (DateTime,    "d-mmm-yy"),
+    16 = (DateTime,    "d-mmm"),
+    17 = (DateTime,    "mmm-yy"),
+    18 = (DateTime,    "h:mm AM/PM"),
+    19 = (DateTime,    "h:mm:ss AM/PM"),
+    20 = (DateTime,    "h:mm"),
+    21 = (DateTime,    "h:mm:ss"),
+    22 = (DateTime,    "m/d/yy h:mm"),
+    37 = (Float64,     "#,##0_);(#,##0)"),
+    38 = (Float64,     "#,##0_);[Red](#,##0)"),
+    39 = (Float64,     "#,##0.00_);(#,##0.00)"),
+    40 = (Float64,     "#,##0.00_);[Red](#,##0.00)"),
+    41 = (Float64,     "_(* #,##0_);_(* (#,##0);_(* \"-\"_);_(@_)"),
+    42 = (Float64,     "_(u0024* #,##0_);_(u0024* (#,##0);_(u0024* \"-\"_);_(@_)"),
+    43 = (Float64,     "_(* #,##0.00_);_(* (#,##0.00);_(* \"-\"??_);_(@_)"),
+    44 = (Float64,     "_(u0024* #,##0.00_);_(u0024* (#,##0.00);_(u0024* \"-\"??_);_(@_)"),
+    45 = (DateTime,    "mm:ss"),
+    46 = (DateTime,    "[h]:mm:ss"),
+    47 = (DateTime,    "mm:ss.0"),
+    48 = (DateTime,    "##0.0E+0"),
+    49 = (AbstractString, "@"))
