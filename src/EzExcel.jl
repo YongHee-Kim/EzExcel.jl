@@ -1,28 +1,25 @@
+__precompile__()
 
 module EzExcel
 
 using Missings
-# using ZipFile, EzXML
-#
-# # import for extension
-# import Base: getindex
-#
-# # import for use
-# using ZipFile: ReadableFile, Reader
+using EzXML, ZipFile
 
-# include("index.jl")
+
+# import for use
+using ZipFile: ReadableFile, Reader
+
+include("parse.jl")
+include("index.jl")
+include("format.jl")
+
+include("workbook.jl")
 include("worksheet.jl")
-# include("workbook.jl")
-# include("error.jl")
+include("cell.jl")
 
 
-
-export WorkBook, WorkSheet,
-        sheetnames,
-
-
-
-
-
+export WorkBook, 
+        sheetnames, sheetname,
+        peeloff
 
 end

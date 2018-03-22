@@ -1,77 +1,156 @@
-EzXML.parsexml(x::ReadableFile) = parsexml(readstring(x))
-EzXML.parsexml(x::Reader) = parsexml(readstring(x))
 
 """
-    Contents of a "workbook"
+    `WorkBook` contains number of `WorkSheet` objects
+    `WorkSheet` can be accessed by index number or name of WorkSheet
+
+    **Arguments**
 """
 struct WorkBook
-    file::ZipFile.Reader
-    shared_strings::Index
-    sheets::Index
-    children::Tuple
-    parsed_children::Vector{Union{Missing, WorkSheet}}
-end
-function WorkBook(filename::AbstractString)
-    file = ZipFile.Reader(filename)
-    s_strings = shared_strings(file)
-    sheets = sheetnames(file)
+    path::String
+    custom_number_format::Dict
+    xf_index_to_number_format::Tuple
+    shared_strings::Tuple
 
-    children = begin
-        xml_files = broadcast(i -> "xl\\worksheets\\sheet$i.xml", eachindex(sheets))
-        ind = indexin(xml_files, broadcast(x -> normpath(x.name), file.files))
-        file.files[ind]
+    sheets::Vector
+    sheet_index::Index
+end
+function WorkBook(path::AbstractString)
+    if !endswith(path, ".xlsx")
+        throw(ArgumentError("EzExcel is only compatible with '.xlsx' format"))
     end
-    parsed_children = Union{Missing, WorkSheet}[fill(missing, length(sheets))...]
-    WorkBook(file, Index(s_strings), Index(sheets), Tuple(children), parsed_children)
-end
+    file = ZipFile.Reader(path)
+    # Shared informations in WorkBook
+    style_xml = get_xmlroot(file, "styles.xml")
+    workbook_xml = get_xmlroot(file, "workbook.xml")
+    sharedstrings_xml = get_xmlroot(file, "sharedstrings.xml")
 
+    custom_number_format = extract_numFmts(style_xml)
+    xf_index_to_number_format = extract_cellXfs(style_xml)
+    s_strings = extract_sharedstrings(sharedstrings_xml)
+
+    # initialize WorkBook for parenting WorkSheet
+    sheet_names = extract_sheetnames(workbook_xml)
+    wb = WorkBook(path, custom_number_format, xf_index_to_number_format, s_strings,
+             Array{WorkSheet}(length(sheet_names)), Index(sheet_names))
+    WorkBook(wb, file)
+end
+function WorkBook(wb::WorkBook, file)
+    for (i, name) in enumerate(sheetnames(wb))
+        p = "xl\\worksheets\\sheet$i.xml"
+        wb.sheets[i] = WorkSheet(wb, name, get_xmlroot(file, p))
+    end
+    close(file)
+    wb
+end
 
 function Base.show(io::IO, wb::WorkBook)
-    print(io, wb.sheets.lookup)
+    print(basename(wb.path))
+    print(" / ")
+    println(io, keys(wb.sheet_index.lookup))
 end
 
-
-function getindex(wb::WorkBook, inds...)
-    _valid = wb.parsed_children |> x -> broadcast(i -> isassigned(x, i), inds...)
-
-    for i in eachindex(wb.parsed_children)
-
+# FallBack Functions
+function Base.getindex(wb::WorkBook, inds...)
+    for (i, j) in enumerate(inds...)
+        ws = wb.sheets[j]
+        if isa(ws, WorkSheet{EzXML.Node})
+            wb.sheets[j] = WorkSheet(ws)
+        end
     end
-    getindex(wb.parsed_children, inds...)
+    getindex(wb.sheets, inds...)
 end
-function getindex(wb::WorkBook, key)
+Base.getindex(wb::WorkBook, key::String) = getindex(wb, wb.sheet_index[key])
+Base.endof(wb::WorkBook) = endof(wb.sheets)
 
-end
-getindex(wb::WorkBook, key::Symbol) = getindex(wb, string(key))
 
-###
+
+################################################################################
+# Accessors for WorkBook
 """
 A list of all sheets in the WorkBook
 """
-function sheetnames(xlfile)
-    xml_file = filter(x -> endswith(normpath(x.name), "xl\\workbook.xml"), xlfile.files)
+sheetnames(wb::WorkBook) = wb.sheet_index.names
 
-    f = readstring(xml_file[1]) |> parsexml |> root
 
-    sheets_node = filter(x -> nodename(x) .== "sheets", elements(f))
-    sheets = Vector{String}(countelements(sheets_node[1]))
-    for el in elements(sheets_node[1])
-        sheets[parse(el["sheetId"])] = el["name"]
-    end
+################################################################################
 
-    return sheets
+function get_xmlroot(file, el)
+    x = filter(x -> endswith(lowercase(normpath(x.name)), el), file.files)
+    isempty(x) ? nothing : root(parsexml(x[1]))
 end
+"""
+    extract_cellXfs(xml)
 
-function shared_strings(xlfile)
-    xml_file = filter(x -> endswith(lowercase(x.name), "sharedstrings.xml"), xlfile.files)
+order of values in `cellXfs` is cell style index number
+설명 수정 필요 stackoverflow 답변 링크?
+"""
+function extract_cellXfs(xml)
+    xf_node = Iterators.filter(x -> nodename(x) .== "cellXfs", eachnode(xml))
+    xf_node = collect(xf_node)[1] |> eachnode |> collect
 
-    if !isempty(xml_file)
-        f = readstring(xml_file[1])
-        if !isempty(f)
-            f = root(parsexml(f))
+    xf_datas = filter(iselement, xf_node)    
 
-            return nodecontent.(collect(eachnode(f)))
+    fmt_ids = zeros(UInt16, length(xf_datas))
+    for (i, x) in enumerate(xf_datas)
+        if haskey(x, "numFmtId") 
+            fmt_ids[i] = parse(UInt16, x["numFmtId"])
         end
     end
-    return nothing
+    Tuple(fmt_ids)
+end
+
+"""
+    extract_numFmts
+
+find datatype of cell value based on format code info.
+some formate codes ared predefined in `ECMA_NUMBER_FORMAT`, but others are not predefined and
+defined within indivisual Excel File
+
+설명 수정 필요...
+
+reference:[ECMA-376 standard](http://www.ecma-international.org/publications/standards/Ecma-376.htm)
+           5th Edition Part1 - 18.8.30 numFmt (Number Format)
+"""
+function extract_numFmts(xml)
+    d = Dict{UInt16,Tuple}()
+    fmt_node = Iterators.filter(x -> nodename(x) .== "numFmts", eachnode(xml))
+
+    if !isempty(fmt_node)
+        fmt_datas = collect(fmt_node)[1] |> eachnode |> collect
+
+        for el in filter(iselement, fmt_datas)
+            fmtid = parse(Int, el["numFmtId"])
+            d[fmtid] = (guess_datatype(el["formatCode"]), el["formatCode"])
+        end
+    end
+    d
+end
+
+function extract_sharedstrings(xml)
+    if isa(xml, Void)
+        ()
+    else
+        x = collect(eachnode(xml))
+        Tuple(nodecontent.(x))
+    end
+end
+
+function extract_sheetnames(xml)
+    sheets_node = filter(x -> nodename(x) .== "sheets", elements(xml))
+    sheets_node = elements(sheets_node[1])
+
+    k = haskey(sheets_node[1], "r:id") ? "r:id" : 
+        haskey(sheets_node[1], "d3p1:id") ? "d3p1:id" : 
+        error("sheet index is not readable")
+    
+    sheet_cnt = length(sheets_node)
+    rids = Vector{Int}(sheet_cnt)
+    sheet_names = Vector{String}(sheet_cnt)
+    
+    for (i, el) in enumerate(sheets_node)
+        rids[i] = split(el[k], "rId")[2] |> x -> parse(Int, x)
+        sheet_names[i] = el["name"]
+    end
+
+    return sheet_names[sortperm(rids)]
 end
