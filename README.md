@@ -1,6 +1,6 @@
 # EzExcel.jl
 
-> EzExcel is not stable enought to be registered package, and I'm not planning to make it anytime soon. So, you are welcome to fork and develop separate package as you like.<br>
+> EzExcel is not stable enough to be registered, and I'm not planning to make it anytime soon. So, you are welcome to fork and develop separate package as you like.<br>
 > EzExcel is heavily inspired by [ExcelReaders](https://github.com/davidanthoff/ExcelReaders.jl), [XLSXread](https://github.com/bbrunaud/XLSXread.jl/blob/master/src/XLSXread.jl) and [xlrd](https://github.com/python-excel/xlrd). Many lines of codes came from those projects
 
 Excel file reader for Julia with minimal dependency on [EzXML](https://github.com/bicycle1885/EzXML.jl) and [ZipFile](https://github.com/fhs/ZipFile.jl). EzExcel is Only compatible with `XLSX` format that follows [ECMA-376 standard](http://www.ecma-international.org/publications/standards/Ecma-376.htm)
