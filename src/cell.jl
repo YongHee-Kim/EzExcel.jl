@@ -1,8 +1,8 @@
 """
     Cell{T}
 
-preserve 'fmtId' for Cell for future use
-currently there is no functionality for fmtId after cell value is extracted
+preserve 'fmtId' for Cell
+currently there is no functionality for fmtId after DataType of cell is determined
 """
 struct Cell{T}
     numFmtId::UInt16
@@ -11,10 +11,10 @@ end
 Cell(id, v::T) where T = Cell{T}(id, v)
 
 function Cell(wb::WorkBook, x::EzXML.Node)
-    # println("cell data / ", x["r"])
+    # @show "cell data / " x["r"]
     fmt_id, T = find_cell_datatype(wb, x)
-
-    cell_values = filter(iselement, collect(eachnode(x)))
+    
+    cell_values = filter(iselement, nodes(x))
     # sometimes there can be no value, even through it has cell address
     value = if isempty(cell_values)
                 missing
@@ -22,12 +22,7 @@ function Cell(wb::WorkBook, x::EzXML.Node)
                 v = nodecontent.(cell_values)[end]
                 v = get_cellvalue(T, wb, v)
             end
-    
     Cell(fmt_id, value)
-end
-
-function Base.show(io::IO, x::Cell)
-    print(io, x.v)
 end
 
 # fallback methods
@@ -56,7 +51,7 @@ function get_cellvalue(::Type{DateTime}, wb, x)
     x
 end
 get_cellvalue(::Type{ExcelDateTime}, wb, x) = parse(ExcelDateTime, x)
-get_cellvalue(::Type{Missing}, wb, x) = x
+get_cellvalue(::Type{Missing}, wb, x) = missing
 get_cellvalue(::Type{String}, wb, x) = String(x)
 get_cellvalue(::Type{Float64}, wb, x) = parse(Float64, x)
 get_cellvalue(::Type{T}, wb, x) where T<:Integer= parse(T, x)
@@ -66,18 +61,20 @@ end
 get_cellvalue(::Type{GeneralFormat}, wb, x) = parse(GeneralFormat, x)
 get_cellvalue(::Type{ScientificFormat}, wb, x) = parse(ScientificFormat, x)
 
-"""
-    peeloff(x::Vector{Union{Cell, Missing}})
 
-peel off 'Cell{T}' and returns Array{Union{T...} with cell values
-"""
-function peeloff(datas::Vector{Union{Cell, Missing}})
-    v = map(x -> ismissing(x) ? x : peeloff(x), datas)
+# peel off 'Cell{T}' and returns T(value)  
+value(x::Cell) = x.v
+value(x::Missing) = missing
+function peeloff(ws::WorkSheet)
+    x = ws.data
+    isa(x, Array{Union{EzExcel.Cell, Missing}}) ? _peeloff(x) : x
+end
+function _peeloff(datas)
+    v = value.(datas)
     T = unique(typeof.(v))
     if length(T) < 3
-        convert(Vector{Union{T...}}, v)
+        convert(Array{Union{T...}}, v)
     else
-        convert(Vector{Union{Missing, Any}}, v)
+        convert(Array{Any}, v)
     end
 end
-peeloff(x::Cell) = x.v

@@ -14,9 +14,11 @@ struct WorkBook
     sheets::Vector
     sheet_index::Index
 end
+
+# Constructor
 function WorkBook(path::AbstractString)
     if !endswith(path, ".xlsx")
-        throw(ArgumentError("EzExcel is only compatible with '.xlsx' format"))
+        throw(DomainError("EzExcel is only compatible with '.xlsx' format"))
     end
     file = ZipFile.Reader(path)
     # Shared informations in WorkBook
@@ -35,7 +37,7 @@ function WorkBook(path::AbstractString)
     WorkBook(wb, file)
 end
 function WorkBook(wb::WorkBook, file)
-    for (i, name) in enumerate(sheetnames(wb))
+    for (i, name) in enumerate(sheetname(wb))
         p = "xl\\worksheets\\sheet$i.xml"
         wb.sheets[i] = WorkSheet(wb, name, get_xmlroot(file, p))
     end
@@ -43,36 +45,6 @@ function WorkBook(wb::WorkBook, file)
     wb
 end
 
-function Base.show(io::IO, wb::WorkBook)
-    print(basename(wb.path))
-    print(" / ")
-    println(io, keys(wb.sheet_index.lookup))
-end
-
-# FallBack Functions
-function Base.getindex(wb::WorkBook, inds...)
-    for (i, j) in enumerate(inds...)
-        ws = wb.sheets[j]
-        if isa(ws, WorkSheet{EzXML.Node})
-            wb.sheets[j] = WorkSheet(ws)
-        end
-    end
-    getindex(wb.sheets, inds...)
-end
-Base.getindex(wb::WorkBook, key::String) = getindex(wb, wb.sheet_index[key])
-Base.endof(wb::WorkBook) = endof(wb.sheets)
-
-
-
-################################################################################
-# Accessors for WorkBook
-"""
-A list of all sheets in the WorkBook
-"""
-sheetnames(wb::WorkBook) = wb.sheet_index.names
-
-
-################################################################################
 
 function get_xmlroot(file, el)
     x = filter(x -> endswith(lowercase(normpath(x.name)), el), file.files)
@@ -85,8 +57,8 @@ order of values in `cellXfs` is cell style index number
 설명 수정 필요 stackoverflow 답변 링크?
 """
 function extract_cellXfs(xml)
-    xf_node = Iterators.filter(x -> nodename(x) .== "cellXfs", eachnode(xml))
-    xf_node = collect(xf_node)[1] |> eachnode |> collect
+    xf_node = Iterators.filter(x -> nodename(x) == "cellXfs", eachnode(xml))
+    xf_node = collect(xf_node)[1] |> nodes
 
     xf_datas = filter(iselement, xf_node)    
 
@@ -113,10 +85,10 @@ reference:[ECMA-376 standard](http://www.ecma-international.org/publications/sta
 """
 function extract_numFmts(xml)
     d = Dict{UInt16,Tuple}()
-    fmt_node = Iterators.filter(x -> nodename(x) .== "numFmts", eachnode(xml))
+    fmt_node = Iterators.filter(x -> nodename(x) == "numFmts", eachnode(xml))
 
     if !isempty(fmt_node)
-        fmt_datas = collect(fmt_node)[1] |> eachnode |> collect
+        fmt_datas = collect(fmt_node)[1] |> nodes
 
         for el in filter(iselement, fmt_datas)
             fmtid = parse(Int, el["numFmtId"])
@@ -130,7 +102,8 @@ function extract_sharedstrings(xml)
     if isa(xml, Void)
         ()
     else
-        x = collect(eachnode(xml))
+        x = elements(xml) |> x -> vcat(elements.(x)...)
+        x = filter(el -> nodename(el) == "t", x)
         Tuple(nodecontent.(x))
     end
 end
@@ -154,3 +127,35 @@ function extract_sheetnames(xml)
 
     return sheet_names[sortperm(rids)]
 end
+
+
+##############################################################################
+##
+## Basic properties of a WorkBook
+##
+##############################################################################
+
+function Base.getindex(wb::WorkBook, inds...)
+    for (i, j) in enumerate(inds...)
+        ws = wb.sheets[j]
+        if isa(ws, WorkSheet{EzXML.Node})
+            wb.sheets[j] = WorkSheet(ws)
+        end
+    end
+    getindex(wb.sheets, inds...)
+end
+Base.getindex(wb::WorkBook, key::String) = getindex(wb, wb.sheet_index[key])
+
+Base.length(wb::WorkBook) = length(wb.sheets)
+# Base.start(wb::WorkBook) = start(wb.sheets)
+# Base.next(wb::WorkBook, i) = next(wb.sheets, i)
+# Base.done(wb::WorkBook, i) = done(wb.sheets, i)
+Base.endof(wb::WorkBook) = endof(wb.sheets)
+
+
+# Accessors for WorkBook
+"""
+A list of all sheets in the WorkBook
+"""
+sheetname(wb::WorkBook) = wb.sheet_index.names
+sheets(wb::WorkBook) = wb[1:end]

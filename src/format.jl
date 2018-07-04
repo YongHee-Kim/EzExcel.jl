@@ -66,6 +66,9 @@ const ECMA_NUMBER_FORMAT = Dict{UInt16, Tuple}(
 
 """
     ECMA_CELLTYPE
+e: treats all error type of 'ECMA_ERROR_VALUES' as 'missing'
+n: excel treats all number as 'Float'
+
 reference:[ECMA-376 standard](http://www.ecma-international.org/publications/standards/Ecma-376.htm)
            5th Edition Part1 - 18.18.11 ST_ST_CellType (Cell Type)
 """
@@ -79,6 +82,8 @@ const ECMA_CELLTYPE = Dict(
     "s"         => SharedString)
 
 """
+    ECMA_ERROR_VALUES
+currently not being used in 'EzExcel'
 
 reference:[ECMA-376 standard](http://www.ecma-international.org/publications/standards/Ecma-376.htm)
         5th Edition Part1 - L.2.16.8 Error values
@@ -99,16 +104,19 @@ guess `DataType` from Excel format code
 """
 function guess_datatype(fmtcode::AbstractString)
     T = String
-    for reg in ((ExcelDateTime,    r"[ymdhs]"),
-                (ScientificFormat, r"E\+|E\-"),
+    # seperating 'print format' and 'data format'
+    print_fmt = search(fmtcode, r"\[(.*?)\]")
+    data_fmt = first(print_fmt) == 0 ? fmtcode : fmtcode[last(print_fmt)+1:end]
+
+    for reg in ((EzExcel.ExcelDateTime,    r"[ymdhs]"),
+                (EzExcel.ScientificFormat, r"E\+|E\-"),
                 (Float64,          r"0\.|#\.|0_|#_|\%|\?\/"),
-                (Float64,          r"0|#"))
-        if ismatch(reg[2], fmtcode)
+                (Int,          r"0|#"))
+        if ismatch(reg[2], data_fmt)
             T = reg[1]
             break
         end
     end
-
     # T == String && warn("failed to find 'DataType' for '$fmtcode'")
     return T
 end

@@ -11,10 +11,9 @@ stored in the xml.
 struct ScientificFormat end
 function Base.parse(::Type{ScientificFormat}, x::AbstractString)::Float64
     if contains(x, "E")
-        parse(Float64, lowercase(x))
-    else
-        parse(Float64, x)
+        x = lowercase(x)
     end
+    parse(Float64, x)
 end
 
 """
@@ -39,17 +38,23 @@ function Base.parse(::Type{GeneralFormat}, x)
         end
         b
     end
-
+    function isint(x::AbstractString)::Bool
+        b = false
+        if !isempty(x)
+            cha = matchall(r"[^0-9]", x)
+            b = isempty(cha)                         ? true : 
+                (length(cha) == 1 && cha[1] == "-" ) ? true : 
+                                                     false
+        end
+        b
+    end
     if isfloat(x)
         parse(Float64, x)
     else
-        if in(x, keys(EzExcel.ECMA_ERROR_VALUES))
-            missing
-        elseif in(x, ("True", "true", "False", "false"))
-            parse(Bool, lowercase(x))
-        else
-            String(x)
-        end
+        in(x, keys(EzExcel.ECMA_ERROR_VALUES))    ? missing :
+        in(x, ("True", "true", "False", "false")) ? parse(Bool, lowercase(x)) :
+        isint(x)                                  ? parse(Int, x) :
+                                                  String(x)
     end
 end    
 

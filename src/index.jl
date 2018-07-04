@@ -1,4 +1,4 @@
-# Teaked DataFrames Index for SharedStrings and SheetName
+# Tweaked DataFrames Index for SharedStrings and SheetName
 # https://github.com/JuliaData/DataFrames.jl/blob/master/src/other/index.jl
 struct Index
     lookup::Dict{String, Int}
@@ -6,8 +6,8 @@ struct Index
 end
 
 function Index(names::Vector{String})
-    if unique(names) != names
-        error("Excel do not allow duplicated string for SheetName")
+    if !allunique(names)
+        error("SheetName is duplicated, Excel Do not duplicated SheetName")
     end
     lookup = Dict{String, Int}(zip(names, 1:length(names)))
     Index(lookup, Tuple(names))
